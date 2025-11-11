@@ -39,20 +39,23 @@ When deploying to Render (or any hosting platform), make sure to set these envir
    NEXTAUTH_URL=https://your-app.onrender.com
    NEXTAUTH_SECRET=your-secret-key-min-32-chars
    ```
+   **CRITICAL:** DATABASE_URL MUST start with `file:` protocol!
 
 2. **Build Command:**
    ```
-   npm install && npx prisma generate && npm run build
+   npm install && npx prisma generate && npx prisma db push && npm run build
    ```
 
 3. **Start Command:**
    ```
-   npm start
+   npm run start:prod
    ```
+   This will automatically initialize the database and create the owner account.
 
 4. **Database Setup:**
    - The database will be created automatically on first run
-   - Run `npx prisma db push` if needed to sync schema
+   - Owner account is created/reset automatically on startup
+   - Use `npm run db:init` to manually initialize if needed
 
 ## Important Notes
 
