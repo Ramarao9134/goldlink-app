@@ -1,6 +1,5 @@
 import { getServerSession } from "next-auth"
 import { authOptions } from "./auth"
-import { UserRole } from "@prisma/client"
 
 export async function requireAuth() {
   const session = await getServerSession(authOptions)
@@ -10,7 +9,7 @@ export async function requireAuth() {
   return session
 }
 
-export async function requireRole(role: UserRole) {
+export async function requireRole(role: "CUSTOMER" | "OWNER") {
   const session = await requireAuth()
   if (session.user.role !== role) {
     throw new Error("Forbidden")
