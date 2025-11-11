@@ -16,7 +16,8 @@ export function Scene3D() {
   } | null>(null)
 
   useEffect(() => {
-    if (!mountRef.current) return
+    const mount = mountRef.current
+    if (!mount) return
 
     const scene = new THREE.Scene()
     const camera = new THREE.PerspectiveCamera(
@@ -28,7 +29,7 @@ export function Scene3D() {
     const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true })
     renderer.setSize(window.innerWidth, window.innerHeight)
     renderer.setPixelRatio(window.devicePixelRatio)
-    mountRef.current.appendChild(renderer.domElement)
+    mount.appendChild(renderer.domElement)
 
     // Create gold coin with better details
     const geometry = new THREE.CylinderGeometry(1.2, 1.2, 0.15, 64)
@@ -230,8 +231,8 @@ export function Scene3D() {
           })
         }
       }
-      if (mountRef.current && mountRef.current.contains(renderer.domElement)) {
-        mountRef.current.removeChild(renderer.domElement)
+      if (mount && mount.contains(renderer.domElement)) {
+        mount.removeChild(renderer.domElement)
       }
     }
   }, [])

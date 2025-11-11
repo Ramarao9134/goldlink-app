@@ -113,7 +113,7 @@ export default function LoginPage() {
             </form>
             <div className="mt-4 space-y-2">
               <div className="text-center text-sm">
-                <span className="text-muted-foreground">Don't have an account? </span>
+                <span className="text-muted-foreground">Don&apos;t have an account? </span>
                 <Link href="/auth/register" className="text-primary hover:underline">
                   Register
                 </Link>
