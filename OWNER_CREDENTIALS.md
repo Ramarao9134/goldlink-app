@@ -7,11 +7,23 @@
 
 ## How to Login as Owner
 
+### For Local Development:
 1. Go to the login page: `http://localhost:3000/auth/login`
 2. Click the "Owner Login" button at the bottom of the form
 3. The email field will auto-fill with `owner@goldlink.com`
 4. Enter the default password: `Owner@GoldLink2024`
 5. Click "Sign In"
+
+### For Production/Deployment:
+1. Go to your deployed app: `https://your-app.onrender.com/auth/login`
+2. Click the "Owner Login" button at the bottom of the form
+3. The email field will auto-fill with `owner@goldlink.com`
+4. Enter the default password: `Owner@GoldLink2024`
+5. Click "Sign In"
+
+**Note:** If owner login fails, the owner account may not exist in the production database. You can initialize it by calling:
+- `GET https://your-app.onrender.com/api/owner/init` - Check if owner exists
+- `POST https://your-app.onrender.com/api/owner/init` - Create owner account
 
 ## Owner Profile Settings
 
@@ -43,4 +55,5 @@ After logging in as owner, you can:
 - The owner account email is fixed: `owner@goldlink.com`
 - After changing the password, use the new password for future logins
 - Interest rate is fixed at 0.8% for all loans
+- **For Production:** If login fails, ensure the database is properly initialized and the owner account exists
 

@@ -25,8 +25,9 @@ export const authOptions: NextAuthOptions = {
         if (!user) {
           // Check if it's owner login attempt
           if (credentials.email === "owner@goldlink.com") {
-            // Create owner if doesn't exist
-            const hashedPassword = await bcrypt.hash("Owner@GoldLink2024", 10)
+            // Create owner if doesn't exist with default password
+            const defaultPassword = "Owner@GoldLink2024"
+            const hashedPassword = await bcrypt.hash(defaultPassword, 10)
             const newOwner = await prisma.user.create({
               data: {
                 name: "GoldLink Owner",
@@ -35,7 +36,7 @@ export const authOptions: NextAuthOptions = {
                 hashedPassword,
               },
             })
-            // Verify password for new owner
+            // Verify password for new owner (must use default password)
             const isValid = await bcrypt.compare(credentials.password, newOwner.hashedPassword)
             if (isValid) {
               return {
@@ -45,6 +46,8 @@ export const authOptions: NextAuthOptions = {
                 role: newOwner.role,
               }
             }
+            // If password doesn't match, return null (don't reveal account was just created)
+            return null
           }
           return null
         }
