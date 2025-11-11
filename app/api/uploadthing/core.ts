@@ -1,8 +1,7 @@
 import { createUploadthing, type FileRouter } from "uploadthing/next"
 
-const f = createUploadthing({
-  // For local testing, we'll use a mock secret if not provided
-})
+// ✅ Correct usage (no argument needed)
+const f = createUploadthing()
 
 export const ourFileRouter = {
   imageUploader: f({ image: { maxFileSize: "4MB", maxFileCount: 5 } })
