@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
-import { z } from "zod"
+import { z, ZodError } from "zod"
 
 const approveSchema = z.object({
   principalAmount: z.number().positive(),
@@ -91,24 +91,29 @@ export async function POST(
 
     return NextResponse.json(result, { status: 200 })
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      const errorMessages = error.errors.map(err => {
-        if (err.path.includes("interestRateMonthlyPct")) {
-          return `Interest rate must be between 0.5% and 5% per month. You entered ${err.input || "invalid value"}.`
+    if (error instanceof ZodError) {
+      const errorMessages = error.errors.map((err) => {
+        const field = err.path.join(".")
+        if (field.includes("interestRateMonthlyPct")) {
+          return "Interest rate must be between 0.5% and 5% per month."
         }
-        if (err.path.includes("principalAmount")) {
-          return `Principal amount must be a positive number.`
+        if (field.includes("principalAmount")) {
+          return "Principal amount must be a positive number."
         }
+        // Fallback to the zod-generated message
         return err.message
       })
+
       return NextResponse.json(
-        { error: errorMessages.join(" ") || "Invalid input", details: error.errors },
+        { error: errorMessages.join(" ") },
         { status: 400 }
       )
     }
+
+    // non-zod error
     console.error("Error approving application:", error)
     return NextResponse.json(
-      { error: "Internal server error" },
+      { error: "Something went wrong while approving the application." },
       { status: 500 }
     )
   }
