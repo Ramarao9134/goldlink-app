@@ -1,10 +1,10 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { formatCurrency } from "@/lib/utils"
+import { Card, CardContent, CardHeader, CardTitle } from "./ui/card"
 
 interface GoldRate {
+  id: string
   karat: string
   pricePerGram: number
   fetchedAt: string
@@ -23,12 +23,10 @@ export function GoldRatesDisplay() {
   const fetchRates = async () => {
     try {
       const res = await fetch("/api/gold-rates")
-      if (res.ok) {
-        const data = await res.json()
-        setRates(data.rates || [])
-      }
+      const data = await res.json()
+      setRates(data.rates || [])
     } catch (error) {
-      console.error("Failed to fetch gold rates:", error)
+      console.error("Error fetching gold rates:", error)
     } finally {
       setLoading(false)
     }
@@ -36,44 +34,32 @@ export function GoldRatesDisplay() {
 
   if (loading) {
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle>Live Gold Rates</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-center py-4">Loading rates...</p>
-        </CardContent>
-      </Card>
+      <div className="flex gap-4">
+        <Card className="flex-1">
+          <CardHeader>
+            <CardTitle>Loading...</CardTitle>
+          </CardHeader>
+        </Card>
+      </div>
     )
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center justify-between">
-          <span>Live Gold Rates</span>
-          <span className="text-sm font-normal text-muted-foreground">
-            Updated: {rates[0]?.fetchedAt ? new Date(rates[0].fetchedAt).toLocaleTimeString() : "N/A"}
-          </span>
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        <div className="grid grid-cols-2 gap-4">
-          {rates.map((rate) => (
-            <div
-              key={rate.karat}
-              className="p-4 bg-gradient-to-br from-amber-50 to-yellow-50 rounded-lg border border-amber-200"
-            >
-              <div className="text-sm text-gray-600 mb-1">{rate.karat} Gold</div>
-              <div className="text-2xl font-bold text-amber-600">
-                {formatCurrency(rate.pricePerGram)}
-              </div>
-              <div className="text-xs text-gray-500 mt-1">per gram</div>
-            </div>
-          ))}
-        </div>
-      </CardContent>
-    </Card>
+    <div className="flex gap-4 flex-wrap">
+      {rates.map((rate) => (
+        <Card key={rate.id} className="flex-1 min-w-[200px] bg-gradient-to-br from-amber-50 to-yellow-50 border-amber-300 shadow-lg">
+          <CardHeader>
+            <CardTitle className="text-2xl text-amber-800">{rate.karat} Gold</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-4xl font-bold bg-gradient-to-r from-amber-700 to-yellow-700 bg-clip-text text-transparent">
+              ₹{rate.pricePerGram.toFixed(2)}
+            </p>
+            <p className="text-sm text-amber-700/70 mt-2 font-medium">per gram</p>
+          </CardContent>
+        </Card>
+      ))}
+    </div>
   )
 }
 

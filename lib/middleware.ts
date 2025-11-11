@@ -1,31 +1,20 @@
 import { getServerSession } from "next-auth"
-import { authOptions } from "@/lib/auth"
-import { NextResponse } from "next/server"
-import type { NextRequest } from "next/server"
+import { authOptions } from "./auth"
+import { UserRole } from "@prisma/client"
 
-export async function requireAuth(request: NextRequest) {
+export async function requireAuth() {
   const session = await getServerSession(authOptions)
-
   if (!session) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    throw new Error("Unauthorized")
   }
-
-  return { session, user: session.user }
+  return session
 }
 
-export async function requireRole(request: NextRequest, allowedRoles: string[]) {
-  const authResult = await requireAuth(request)
-
-  if (authResult instanceof NextResponse) {
-    return authResult
+export async function requireRole(role: UserRole) {
+  const session = await requireAuth()
+  if (session.user.role !== role) {
+    throw new Error("Forbidden")
   }
-
-  const { user } = authResult
-
-  if (!allowedRoles.includes(user.role)) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 })
-  }
-
-  return authResult
+  return session
 }
 

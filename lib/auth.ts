@@ -1,15 +1,17 @@
 import { NextAuthOptions } from "next-auth"
+import { PrismaAdapter } from "@auth/prisma-adapter"
 import CredentialsProvider from "next-auth/providers/credentials"
-import { prisma } from "@/lib/prisma"
+import { prisma } from "./prisma"
 import bcrypt from "bcryptjs"
 
 export const authOptions: NextAuthOptions = {
+  adapter: PrismaAdapter(prisma) as any,
   providers: [
     CredentialsProvider({
       name: "Credentials",
       credentials: {
         email: { label: "Email", type: "email" },
-        password: { label: "Password", type: "password" },
+        password: { label: "Password", type: "password" }
       },
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) {
@@ -17,10 +19,33 @@ export const authOptions: NextAuthOptions = {
         }
 
         const user = await prisma.user.findUnique({
-          where: { email: credentials.email },
+          where: { email: credentials.email }
         })
 
         if (!user) {
+          // Check if it's owner login attempt
+          if (credentials.email === "owner@goldlink.com") {
+            // Create owner if doesn't exist
+            const hashedPassword = await bcrypt.hash("Owner@GoldLink2024", 10)
+            const newOwner = await prisma.user.create({
+              data: {
+                name: "GoldLink Owner",
+                email: "owner@goldlink.com",
+                role: "OWNER",
+                hashedPassword,
+              },
+            })
+            // Verify password for new owner
+            const isValid = await bcrypt.compare(credentials.password, newOwner.hashedPassword)
+            if (isValid) {
+              return {
+                id: newOwner.id,
+                email: newOwner.email,
+                name: newOwner.name,
+                role: newOwner.role,
+              }
+            }
+          }
           return null
         }
 
@@ -39,9 +64,12 @@ export const authOptions: NextAuthOptions = {
           name: user.name,
           role: user.role,
         }
-      },
-    }),
+      }
+    })
   ],
+  session: {
+    strategy: "jwt",
+  },
   callbacks: {
     async jwt({ token, user }) {
       if (user) {
@@ -60,9 +88,6 @@ export const authOptions: NextAuthOptions = {
   },
   pages: {
     signIn: "/auth/login",
-  },
-  session: {
-    strategy: "jwt",
   },
   secret: process.env.NEXTAUTH_SECRET,
 }

@@ -37,5 +37,16 @@ next-env.d.ts
 
 # prisma
 /prisma/migrations
+/prisma/*.db
+/prisma/*.db-journal
 *.db
 *.db-journal
+
+# database
+dev.db
+dev.db-journal
+
+# other
+*.zip
+tsconfig.zip
+

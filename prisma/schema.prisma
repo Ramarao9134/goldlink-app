@@ -10,20 +10,19 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// SQLite doesn't support enums, using String instead
-// UserRole: CUSTOMER, OWNER
-// ApplicationStatus: PENDING, APPROVED, REJECTED
-// SettlementStatus: ACTIVE, CLOSED
-// PaymentStatus: SUCCESS, FAILED, REFUNDED
-// PaymentGateway: RAZORPAY, STRIPE
-
 model User {
   id            String    @id @default(cuid())
   name          String
   email         String    @unique
   phone         String?
-  role          String    // CUSTOMER or OWNER
+  role          String    // "CUSTOMER" or "OWNER"
   hashedPassword String
+  // Owner-specific fields
+  companyName   String?
+  companyAddress String?
+  companyRanks  String?  // JSON string for ranks/certifications
+  quality       String?  // Quality standards/certifications
+  achievements  String?  // JSON string for achievements
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
@@ -31,7 +30,9 @@ model User {
   applicationsAsCustomer Application[] @relation("CustomerApplications")
   applicationsAsOwner    Application[] @relation("OwnerApplications")
   settlementsAsCustomer  Settlement[]  @relation("CustomerSettlements")
-  auditLogs             AuditLog[]
+  auditLogs              AuditLog[]
+  accounts               Account[]
+  sessions               Session[]
 
   @@index([email])
   @@index([role])
@@ -53,15 +54,15 @@ model Application {
   ownerId       String
   karat         String            // "22K" or "24K"
   weightGrams   Float
-  photos        String            // JSON array of image URLs (SQLite doesn't support arrays)
+  photos        String            // Comma-separated URLs
   notes         String?
-  status        String            @default("PENDING") // PENDING, APPROVED, REJECTED
+  status        String            @default("PENDING") // "PENDING", "APPROVED", "REJECTED"
   createdAt     DateTime          @default(now())
   updatedAt     DateTime          @updatedAt
 
   // Relations
-  customer      User              @relation("CustomerApplications", fields: [customerId], references: [id])
-  owner         User              @relation("OwnerApplications", fields: [ownerId], references: [id])
+  customer      User        @relation("CustomerApplications", fields: [customerId], references: [id], onDelete: Cascade)
+  owner         User        @relation("OwnerApplications", fields: [ownerId], references: [id], onDelete: Cascade)
   settlement    Settlement?
 
   @@index([customerId])
@@ -70,20 +71,20 @@ model Application {
 }
 
 model Settlement {
-  id                    String           @id @default(cuid())
-  applicationId         String           @unique
+  id                    String          @id @default(cuid())
+  applicationId         String          @unique
   customerId            String
   principalAmount       Float
   interestRateMonthlyPct Float
-  startDate             DateTime         @default(now())
+  startDate             DateTime        @default(now())
   nextDueDate           DateTime
-  status                String            @default("ACTIVE") // ACTIVE, CLOSED
-  createdAt             DateTime         @default(now())
-  updatedAt             DateTime         @updatedAt
+  status                String          @default("ACTIVE") // "ACTIVE" or "CLOSED"
+  createdAt             DateTime        @default(now())
+  updatedAt             DateTime        @updatedAt
 
   // Relations
-  application           Application      @relation(fields: [applicationId], references: [id])
-  customer              User             @relation("CustomerSettlements", fields: [customerId], references: [id])
+  application           Application     @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  customer              User            @relation("CustomerSettlements", fields: [customerId], references: [id], onDelete: Cascade)
   payments              Payment[]
 
   @@index([customerId])
@@ -92,19 +93,19 @@ model Settlement {
 }
 
 model Payment {
-  id              String         @id @default(cuid())
+  id              String        @id @default(cuid())
   settlementId    String
   amount          Float
-  gateway         String            // RAZORPAY, STRIPE
+  gateway         String        @default("RAZORPAY")
   gatewayPaymentId String?
-  status          String            // SUCCESS, FAILED, REFUNDED
+  status          String        @default("FAILED") // "SUCCESS", "FAILED", "REFUNDED"
   paidAt          DateTime?
   receiptUrl      String?
-  createdAt       DateTime       @default(now())
-  updatedAt       DateTime       @updatedAt
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
 
   // Relations
-  settlement      Settlement     @relation(fields: [settlementId], references: [id])
+  settlement      Settlement    @relation(fields: [settlementId], references: [id], onDelete: Cascade)
 
   @@index([settlementId])
   @@index([status])
@@ -117,14 +118,52 @@ model AuditLog {
   action      String
   entityType  String
   entityId    String
-  meta        String?             // JSON string (SQLite doesn't support Json type)
+  meta        String? // JSON string
   at          DateTime @default(now())
 
   // Relations
-  actor       User     @relation(fields: [actorUserId], references: [id])
+  actor       User     @relation(fields: [actorUserId], references: [id], onDelete: Cascade)
 
   @@index([actorUserId])
   @@index([entityType, entityId])
   @@index([at])
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
 }
 

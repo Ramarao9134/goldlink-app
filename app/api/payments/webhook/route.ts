@@ -1,14 +1,11 @@
-import { NextResponse } from "next/server"
+import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
-import crypto from "node:crypto"
-import { addMonths } from "date-fns"
+import crypto from "crypto"
 
-const RAZORPAY_WEBHOOK_SECRET = process.env.RAZORPAY_WEBHOOK_SECRET || ""
-
-export async function POST(request: Request) {
+export async function POST(req: NextRequest) {
   try {
-    const body = await request.text()
-    const signature = request.headers.get("x-razorpay-signature")
+    const body = await req.text()
+    const signature = req.headers.get("x-razorpay-signature")
 
     if (!signature) {
       return NextResponse.json(
@@ -18,8 +15,9 @@ export async function POST(request: Request) {
     }
 
     // Verify webhook signature
+    const webhookSecret = process.env.RAZORPAY_WEBHOOK_SECRET || ""
     const expectedSignature = crypto
-      .createHmac("sha256", RAZORPAY_WEBHOOK_SECRET)
+      .createHmac("sha256", webhookSecret)
       .update(body)
       .digest("hex")
 
@@ -32,51 +30,75 @@ export async function POST(request: Request) {
 
     const event = JSON.parse(body)
 
-    // Handle payment success
     if (event.event === "payment.captured") {
       const paymentData = event.payload.payment.entity
+      const orderId = paymentData.order_id
 
-      // Find payment by gateway payment ID
-      const payment = await prisma.payment.findFirst({
-        where: {
-          gatewayPaymentId: paymentData.id,
-        },
-        include: {
-          settlement: true,
-        },
-      })
-
-      if (payment && payment.status === "FAILED") {
-        // Update payment status
-        await prisma.payment.update({
-          where: { id: payment.id },
-          data: {
-            status: "SUCCESS",
-            paidAt: new Date(),
-            receiptUrl: paymentData.receipt || null,
+      // Fetch order to get settlement ID from notes
+      const order = await fetch(
+        `https://api.razorpay.com/v1/orders/${orderId}`,
+        {
+          headers: {
+            Authorization: `Basic ${Buffer.from(
+              `${process.env.RAZORPAY_KEY_ID}:${process.env.RAZORPAY_KEY_SECRET}`
+            ).toString("base64")}`,
           },
-        })
+        }
+      ).then((res) => res.json())
 
-        // Update settlement next due date
-        const nextDueDate = addMonths(new Date(), 1)
-        await prisma.settlement.update({
-          where: { id: payment.settlementId },
-          data: { nextDueDate },
-        })
+      const settlementId = order.notes?.settlementId
+      const customerId = order.notes?.customerId
 
-        // Create audit log
-        await prisma.auditLog.create({
-          data: {
-            actorUserId: payment.settlement.customerId,
-            action: "PAYMENT_SUCCESS",
-            entityType: "Payment",
-            entityId: payment.id,
-            meta: JSON.stringify({
-              amount: payment.amount,
-              gatewayPaymentId: paymentData.id,
-            }), // Store as JSON string for SQLite
+      if (settlementId) {
+        // Find the most recent pending payment for this settlement
+        const payment = await prisma.payment.findFirst({
+          where: {
+            settlementId,
+            gatewayPaymentId: null,
+            status: "FAILED",
           },
+          orderBy: { createdAt: "desc" },
         })
+
+        if (payment) {
+          const nextDueDate = new Date()
+          nextDueDate.setDate(nextDueDate.getDate() + 30)
+
+          await prisma.$transaction(async (tx) => {
+            await tx.payment.update({
+              where: { id: payment.id },
+              data: {
+                gatewayPaymentId: paymentData.id,
+                status: "SUCCESS",
+                paidAt: new Date(),
+                receiptUrl: paymentData.receipt || null,
+              },
+            })
+
+            // Update settlement next due date
+            await tx.settlement.update({
+              where: { id: settlementId },
+              data: { nextDueDate },
+            })
+
+            // Create audit log
+            if (customerId) {
+              await tx.auditLog.create({
+                data: {
+                  actorUserId: customerId,
+                  action: "PAYMENT_SUCCESS",
+                  entityType: "Payment",
+                  entityId: payment.id,
+                  meta: JSON.stringify({
+                    amount: paymentData.amount / 100,
+                    gatewayPaymentId: paymentData.id,
+                    orderId: orderId,
+                  }),
+                },
+              })
+            }
+          })
+        }
       }
     }
 
@@ -84,7 +106,7 @@ export async function POST(request: Request) {
   } catch (error) {
     console.error("Webhook error:", error)
     return NextResponse.json(
-      { error: "Webhook processing failed" },
+      { error: "Internal server error" },
       { status: 500 }
     )
   }

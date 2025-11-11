@@ -1,43 +1,40 @@
-import { NextResponse } from "next/server"
+import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import bcrypt from "bcryptjs"
 import { z } from "zod"
 
 const registerSchema = z.object({
-  name: z.string().min(1, "Name is required"),
-  email: z.string().email("Invalid email address"),
+  name: z.string().min(1),
+  email: z.string().email(),
+  password: z.string().min(6),
   phone: z.string().optional(),
-  password: z.string().min(6, "Password must be at least 6 characters"),
   role: z.enum(["CUSTOMER", "OWNER"]),
 })
 
-export async function POST(request: Request) {
+export async function POST(req: NextRequest) {
   try {
-    const body = await request.json()
-    const validatedData = registerSchema.parse(body)
+    const body = await req.json()
+    const validated = registerSchema.parse(body)
 
-    // Check if user already exists
     const existingUser = await prisma.user.findUnique({
-      where: { email: validatedData.email },
+      where: { email: validated.email },
     })
 
     if (existingUser) {
       return NextResponse.json(
-        { error: "User with this email already exists" },
+        { error: "User already exists" },
         { status: 400 }
       )
     }
 
-    // Hash password
-    const hashedPassword = await bcrypt.hash(validatedData.password, 10)
+    const hashedPassword = await bcrypt.hash(validated.password, 10)
 
-    // Create user
     const user = await prisma.user.create({
       data: {
-        name: validatedData.name,
-        email: validatedData.email,
-        phone: validatedData.phone || null,
-        role: validatedData.role,
+        name: validated.name,
+        email: validated.email,
+        phone: validated.phone,
+        role: validated.role,
         hashedPassword,
       },
       select: {
@@ -45,6 +42,7 @@ export async function POST(request: Request) {
         name: true,
         email: true,
         role: true,
+        createdAt: true,
       },
     })
 
@@ -52,14 +50,13 @@ export async function POST(request: Request) {
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(
-        { error: error.errors[0].message },
+        { error: "Invalid input", details: error.errors },
         { status: 400 }
       )
     }
-
     console.error("Registration error:", error)
     return NextResponse.json(
-      { error: "Failed to create account" },
+      { error: "Internal server error" },
       { status: 500 }
     )
   }

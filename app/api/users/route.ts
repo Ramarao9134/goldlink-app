@@ -1,20 +1,17 @@
-import { NextResponse } from "next/server"
+import { NextRequest, NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 
-export async function GET(request: Request) {
+export async function GET(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
-
     if (!session) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const { searchParams } = new URL(request.url)
-    const role = searchParams.get("role")
-
-    if (role === "OWNER") {
+    // Get all owners for customer to select when applying
+    if (session.user.role === "CUSTOMER") {
       const owners = await prisma.user.findMany({
         where: { role: "OWNER" },
         select: {
@@ -23,15 +20,14 @@ export async function GET(request: Request) {
           email: true,
         },
       })
-
-      return NextResponse.json({ users: owners })
+      return NextResponse.json({ owners })
     }
 
-    return NextResponse.json({ users: [] })
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   } catch (error) {
     console.error("Error fetching users:", error)
     return NextResponse.json(
-      { error: "Failed to fetch users" },
+      { error: "Internal server error" },
       { status: 500 }
     )
   }

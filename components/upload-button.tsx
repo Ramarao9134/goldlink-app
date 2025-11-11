@@ -1,24 +1,26 @@
 "use client"
 
-import { UploadButton as UploadThingButton } from "@uploadthing/react"
+import { UploadButton as UploadThingButton } from "@/lib/uploadthing"
+import { useState } from "react"
 
-export function UploadButton({
-  endpoint,
-  onClientUploadComplete,
-  onUploadError,
-}: {
-  endpoint: string
-  onClientUploadComplete?: (res: Array<{ url: string }>) => void
-  onUploadError?: (error: Error) => void
-}) {
+interface UploadButtonProps {
+  onUploadComplete: (urls: string[]) => void
+}
+
+export function UploadButton({ onUploadComplete }: UploadButtonProps) {
+  const [uploadedUrls, setUploadedUrls] = useState<string[]>([])
+
   return (
     <UploadThingButton
-      endpoint={endpoint}
-      onClientUploadComplete={onClientUploadComplete}
-      onUploadError={onUploadError}
-      appearance={{
-        button: "ut-ready:bg-primary ut-uploading:cursor-not-allowed rounded-r-none bg-primary text-primary-foreground hover:bg-primary/90",
-        allowedContent: "text-xs text-muted-foreground",
+      endpoint="imageUploader"
+      onClientUploadComplete={(res) => {
+        const urls = res.map((file) => file.url)
+        setUploadedUrls(urls)
+        onUploadComplete(urls)
+      }}
+      onUploadError={(error: Error) => {
+        console.error("Upload error:", error)
+        alert("Upload failed. Please try again.")
       }}
     />
   )

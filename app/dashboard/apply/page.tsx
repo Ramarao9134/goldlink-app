@@ -1,45 +1,56 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { useRouter } from "next/navigation"
 import { useSession } from "next-auth/react"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { useRouter } from "next/navigation"
+import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Button } from "@/components/ui/button"
-import { UploadButton } from "@/components/upload-button"
-import Link from "next/link"
-import { ArrowLeft } from "lucide-react"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { LocalUploadButton } from "@/components/local-upload-button"
+
+interface Owner {
+  id: string
+  name: string
+  email: string
+}
 
 export default function ApplyPage() {
-  const router = useRouter()
   const { data: session } = useSession()
+  const router = useRouter()
+  const [owners, setOwners] = useState<Owner[]>([])
   const [formData, setFormData] = useState({
     ownerId: "",
-    karat: "22K",
+    karat: "22K" as "22K" | "24K",
     weightGrams: "",
+    photos: [] as string[],
     notes: "",
   })
-  const [photos, setPhotos] = useState<string[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
 
-  // Fetch owners list
-  const [owners, setOwners] = useState<Array<{ id: string; name: string }>>([])
-
   useEffect(() => {
-    fetch("/api/users?role=OWNER")
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.users) {
-          setOwners(data.users)
-          if (data.users.length > 0) {
-            setFormData((prev) => ({ ...prev, ownerId: data.users[0].id }))
-          }
-        }
-      })
-      .catch(console.error)
-  }, [])
+    if (!session) {
+      router.push("/auth/login")
+      return
+    }
+
+    fetchOwners()
+  }, [session, router])
+
+  const fetchOwners = async () => {
+    try {
+      const res = await fetch("/api/users")
+      const data = await res.json()
+      setOwners(data.owners || [])
+    } catch (error) {
+      console.error("Error fetching owners:", error)
+    }
+  }
+
+  const handleUploadComplete = (urls: string[]) => {
+    setFormData({ ...formData, photos: [...formData.photos, ...urls] })
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -52,14 +63,8 @@ export default function ApplyPage() {
       return
     }
 
-    if (photos.length === 0) {
+    if (formData.photos.length === 0) {
       setError("Please upload at least one photo")
-      setLoading(false)
-      return
-    }
-
-    if (parseFloat(formData.weightGrams) <= 0) {
-      setError("Weight must be greater than 0")
       setLoading(false)
       return
     }
@@ -69,44 +74,29 @@ export default function ApplyPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          ownerId: formData.ownerId,
-          karat: formData.karat,
+          ...formData,
           weightGrams: parseFloat(formData.weightGrams),
-          photos,
-          notes: formData.notes || null,
         }),
       })
 
       const data = await res.json()
 
       if (!res.ok) {
-        setError(data.error || "Failed to submit application")
-        setLoading(false)
+        setError(data.error || "Failed to create application")
         return
       }
 
       router.push("/dashboard")
-    } catch (err) {
+    } catch (error) {
       setError("An error occurred. Please try again.")
+    } finally {
       setLoading(false)
     }
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-amber-50 to-yellow-50">
-      <header className="border-b bg-white/80 backdrop-blur-sm sticky top-0 z-50">
-        <div className="container mx-auto px-4 py-4 flex justify-between items-center">
-          <h1 className="text-2xl font-bold text-amber-600">GoldLink</h1>
-          <Link href="/dashboard">
-            <Button variant="outline">
-              <ArrowLeft className="w-4 h-4 mr-2" />
-              Back to Dashboard
-            </Button>
-          </Link>
-        </div>
-      </header>
-
-      <main className="container mx-auto px-4 py-8 max-w-2xl">
+    <div className="min-h-screen bg-background">
+      <div className="container mx-auto px-4 py-8 max-w-2xl">
         <Card>
           <CardHeader>
             <CardTitle>Apply to Owner</CardTitle>
@@ -116,25 +106,21 @@ export default function ApplyPage() {
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-6">
-              {error && (
-                <div className="p-3 text-sm text-red-600 bg-red-50 rounded-md">
-                  {error}
-                </div>
-              )}
-
               <div className="space-y-2">
-                <Label htmlFor="ownerId">Select Owner/Jeweler</Label>
+                <Label htmlFor="owner">Select Owner</Label>
                 <select
-                  id="ownerId"
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  id="owner"
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                   value={formData.ownerId}
-                  onChange={(e) => setFormData({ ...formData, ownerId: e.target.value })}
+                  onChange={(e) =>
+                    setFormData({ ...formData, ownerId: e.target.value })
+                  }
                   required
                 >
-                  <option value="">Select an owner</option>
+                  <option value="">Select an owner...</option>
                   {owners.map((owner) => (
                     <option key={owner.id} value={owner.id}>
-                      {owner.name}
+                      {owner.name} ({owner.email})
                     </option>
                   ))}
                 </select>
@@ -144,9 +130,14 @@ export default function ApplyPage() {
                 <Label htmlFor="karat">Karat</Label>
                 <select
                   id="karat"
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                   value={formData.karat}
-                  onChange={(e) => setFormData({ ...formData, karat: e.target.value })}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      karat: e.target.value as "22K" | "24K",
+                    })
+                  }
                   required
                 >
                   <option value="22K">22K</option>
@@ -161,7 +152,7 @@ export default function ApplyPage() {
                   type="number"
                   step="0.01"
                   min="0.01"
-                  placeholder="10.5"
+                  placeholder="Enter weight in grams"
                   value={formData.weightGrams}
                   onChange={(e) =>
                     setFormData({ ...formData, weightGrams: e.target.value })
@@ -171,33 +162,31 @@ export default function ApplyPage() {
               </div>
 
               <div className="space-y-2">
-                <Label>Item Photos</Label>
-                <UploadButton
-                  endpoint="imageUploader"
-                  onClientUploadComplete={(res) => {
-                    const urls = res.map((file) => file.url)
-                    setPhotos((prev) => [...prev, ...urls])
-                  }}
-                  onUploadError={(error) => {
-                    setError(`Upload failed: ${error.message}`)
-                  }}
-                />
-                {photos.length > 0 && (
-                  <div className="mt-4 grid grid-cols-3 gap-2">
-                    {photos.map((photo, idx) => (
+                <Label>Photos</Label>
+                <LocalUploadButton onUploadComplete={handleUploadComplete} />
+                {formData.photos.length > 0 && (
+                  <div className="mt-4 grid grid-cols-3 gap-4">
+                    {formData.photos.map((photo, idx) => (
                       <div key={idx} className="relative">
                         <img
                           src={photo}
                           alt={`Item ${idx + 1}`}
-                          className="w-full h-24 object-cover rounded border"
+                          className="w-full h-32 object-cover rounded"
                         />
-                        <button
+                        <Button
                           type="button"
-                          onClick={() => setPhotos(photos.filter((_, i) => i !== idx))}
-                          className="absolute top-1 right-1 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs"
+                          variant="destructive"
+                          size="sm"
+                          className="absolute top-2 right-2"
+                          onClick={() => {
+                            setFormData({
+                              ...formData,
+                              photos: formData.photos.filter((_, i) => i !== idx),
+                            })
+                          }}
                         >
                           ×
-                        </button>
+                        </Button>
                       </div>
                     ))}
                   </div>
@@ -208,20 +197,35 @@ export default function ApplyPage() {
                 <Label htmlFor="notes">Notes (Optional)</Label>
                 <textarea
                   id="notes"
-                  className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                  placeholder="Any additional details about your gold item..."
+                  className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  placeholder="Any additional information..."
                   value={formData.notes}
-                  onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                  onChange={(e) =>
+                    setFormData({ ...formData, notes: e.target.value })
+                  }
                 />
               </div>
 
-              <Button type="submit" className="w-full" disabled={loading}>
-                {loading ? "Submitting..." : "Submit Application"}
-              </Button>
+              {error && (
+                <p className="text-sm text-destructive">{error}</p>
+              )}
+
+              <div className="flex gap-4">
+                <Button type="submit" disabled={loading}>
+                  {loading ? "Submitting..." : "Submit Application"}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => router.back()}
+                >
+                  Cancel
+                </Button>
+              </div>
             </form>
           </CardContent>
         </Card>
-      </main>
+      </div>
     </div>
   )
 }

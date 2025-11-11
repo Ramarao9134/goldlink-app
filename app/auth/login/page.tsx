@@ -1,22 +1,33 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { signIn } from "next-auth/react"
-import { useRouter } from "next/navigation"
-import { ThreeDScene } from "@/components/3d-scene"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { useRouter, useSearchParams } from "next/navigation"
+import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Scene3D } from "@/components/3d-scene"
 import Link from "next/link"
 
 export default function LoginPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
+  const [success, setSuccess] = useState(false)
+  const [isOwnerLogin, setIsOwnerLogin] = useState(false)
+
+  useEffect(() => {
+    if (searchParams?.get("registered") === "true") {
+      setSuccess(true)
+    }
+    if (searchParams?.get("owner") === "true") {
+      setIsOwnerLogin(true)
+    }
+  }, [searchParams])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -24,51 +35,48 @@ export default function LoginPage() {
     setError("")
 
     try {
+      // Handle owner login - NextAuth will handle it directly now
+      if (isOwnerLogin) {
+        // Ensure email is set correctly
+        const ownerEmail = "owner@goldlink.com"
+        if (email !== ownerEmail) {
+          setEmail(ownerEmail)
+        }
+      }
+      
+      // Use NextAuth for both customer and owner login
       const result = await signIn("credentials", {
-        email,
+        email: isOwnerLogin ? "owner@goldlink.com" : email,
         password,
         redirect: false,
       })
 
       if (result?.error) {
-        setError("Invalid email or password")
-        setLoading(false)
-        return
-      }
-
-      if (result?.ok) {
+        setError(isOwnerLogin ? "Invalid owner credentials" : "Invalid email or password")
+      } else {
         router.push("/dashboard")
         router.refresh()
       }
-    } catch (err) {
+    } catch (error) {
       setError("An error occurred. Please try again.")
+    } finally {
       setLoading(false)
     }
   }
 
   return (
-    <div className="min-h-screen flex">
-      {/* 3D Scene */}
-      <div className="hidden lg:block lg:w-1/2 relative">
-        <ThreeDScene />
-      </div>
-
-      {/* Login Form */}
-      <div className="w-full lg:w-1/2 flex items-center justify-center p-8 bg-gradient-to-br from-amber-50 to-yellow-50">
-        <Card className="w-full max-w-md">
+    <div className="min-h-screen relative overflow-hidden bg-gradient-to-br from-amber-900 via-yellow-900 to-orange-900">
+      <Scene3D />
+      <div className="relative z-10 flex items-center justify-center min-h-screen p-4">
+        <Card className="w-full max-w-md bg-white/95 backdrop-blur-md shadow-2xl border-amber-300">
           <CardHeader>
-            <CardTitle className="text-3xl font-bold text-center">Welcome Back</CardTitle>
+            <CardTitle className="text-3xl font-bold text-center">Login</CardTitle>
             <CardDescription className="text-center">
-              Sign in to your GoldLink account
+              Sign in to your <span className="font-semibold bg-gradient-to-r from-amber-600 to-yellow-600 bg-clip-text text-transparent">GoldLink</span> account
             </CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
-              {error && (
-                <div className="p-3 text-sm text-red-600 bg-red-50 rounded-md">
-                  {error}
-                </div>
-              )}
               <div className="space-y-2">
                 <Label htmlFor="email">Email</Label>
                 <Input
@@ -91,20 +99,38 @@ export default function LoginPage() {
                   required
                 />
               </div>
+              {success && (
+                <p className="text-sm text-green-600 bg-green-50 p-3 rounded">
+                  Registration successful! Please sign in.
+                </p>
+              )}
+              {error && (
+                <p className="text-sm text-destructive">{error}</p>
+              )}
               <Button type="submit" className="w-full" disabled={loading}>
                 {loading ? "Signing in..." : "Sign In"}
               </Button>
             </form>
-            <div className="mt-4 text-center text-sm">
-              <span className="text-gray-600">Don't have an account? </span>
-              <Link href="/auth/register" className="text-primary hover:underline">
-                Sign up
-              </Link>
-            </div>
-            <div className="mt-2 text-center">
-              <Link href="/" className="text-sm text-gray-600 hover:underline">
-                ← Back to home
-              </Link>
+            <div className="mt-4 space-y-2">
+              <div className="text-center text-sm">
+                <span className="text-muted-foreground">Don't have an account? </span>
+                <Link href="/auth/register" className="text-primary hover:underline">
+                  Register
+                </Link>
+              </div>
+              <div className="text-center">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="text-xs"
+                  onClick={() => {
+                    setIsOwnerLogin(!isOwnerLogin)
+                    setEmail(isOwnerLogin ? "" : "owner@goldlink.com")
+                  }}
+                >
+                  {isOwnerLogin ? "Customer Login" : "Owner Login"}
+                </Button>
+              </div>
             </div>
           </CardContent>
         </Card>

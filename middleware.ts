@@ -3,23 +3,27 @@ import { NextResponse } from "next/server"
 
 export default withAuth(
   function middleware(req) {
-    // Add any additional middleware logic here
     return NextResponse.next()
   },
   {
     callbacks: {
       authorized: ({ token, req }) => {
-        // Protect dashboard routes
-        if (req.nextUrl.pathname.startsWith("/dashboard")) {
-          return !!token
+        // Allow access to public routes
+        if (
+          req.nextUrl.pathname.startsWith("/auth") ||
+          req.nextUrl.pathname === "/" ||
+          req.nextUrl.pathname.startsWith("/api/gold-rates") ||
+          req.nextUrl.pathname.startsWith("/api/auth")
+        ) {
+          return true
         }
-        return true
+        return !!token
       },
     },
   }
 )
 
 export const config = {
-  matcher: ["/dashboard/:path*"],
+  matcher: ["/dashboard/:path*", "/api/applications/:path*", "/api/settlements/:path*"],
 }
 
