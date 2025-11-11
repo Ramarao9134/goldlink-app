@@ -52,9 +52,13 @@ export async function POST(
       )
     }
 
-    // Calculate interest amount
-    const interestAmount =
-      (settlement.principalAmount * settlement.interestRateMonthlyPct) / 100
+    // monthly interest in INR
+    const monthlyInterestInInr =
+      Number(settlement.principalAmount) *
+      (Number(settlement.interestRateMonthlyPct) / 100)
+
+    // always a number, rounded to paise
+    const amountInPaise = Math.round(monthlyInterestInInr * 100)
 
     // For testing without Razorpay keys, create a mock payment
     if (!razorpay || !process.env.RAZORPAY_KEY_ID) {
@@ -62,7 +66,7 @@ export async function POST(
       const payment = await prisma.payment.create({
         data: {
           settlementId: settlement.id,
-          amount: interestAmount,
+          amount: monthlyInterestInInr,
           gateway: "MOCK",
           status: "SUCCESS",
           paidAt: new Date(),
@@ -82,15 +86,25 @@ export async function POST(
         success: true,
         message: "Payment processed successfully (Mock mode)",
         paymentId: payment.id,
-        amount: interestAmount,
+        amount: monthlyInterestInInr,
       })
     }
 
-    // Create Razorpay order
+    // Create payment record (status will be updated on webhook)
+    const payment = await prisma.payment.create({
+      data: {
+        settlementId: settlement.id,
+        amount: monthlyInterestInInr,
+        gateway: "RAZORPAY",
+        status: "FAILED", // Will be updated on webhook
+      },
+    })
+
+    // create Razorpay order using our numeric amount
     const order = await razorpay.orders.create({
-      amount: Math.round(interestAmount * 100), // Amount in paise
+      amount: amountInPaise,
       currency: "INR",
-      receipt: `settlement-${settlement.id}-${Date.now()}`,
+      receipt: payment.id, // or `${payment.id}`
       notes: {
         settlementId: settlement.id,
         customerId: session.user.id,
@@ -98,20 +112,11 @@ export async function POST(
       },
     })
 
-    // Create payment record (status will be updated on webhook)
-    const payment = await prisma.payment.create({
-      data: {
-        settlementId: settlement.id,
-        amount: interestAmount,
-        gateway: "RAZORPAY",
-        status: "FAILED", // Will be updated on webhook
-      },
-    })
-
+    // respond using the same numeric amount we computed
     return NextResponse.json({
       orderId: order.id,
-      amount: order.amount / 100,
-      currency: order.currency,
+      amount: amountInPaise / 100, // back to INR for UI
+      currency: "INR",
       key: process.env.RAZORPAY_KEY_ID,
       paymentId: payment.id,
     })
