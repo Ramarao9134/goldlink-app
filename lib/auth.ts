@@ -15,57 +15,102 @@ export const authOptions: NextAuthOptions = {
       },
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) {
+          console.log("Authorize: Missing credentials")
           return null
         }
 
-        const user = await prisma.user.findUnique({
-          where: { email: credentials.email }
-        })
+        try {
+          const user = await prisma.user.findUnique({
+            where: { email: credentials.email }
+          })
 
-        if (!user) {
-          // Check if it's owner login attempt
-          if (credentials.email === "owner@goldlink.com") {
-            // Create owner if doesn't exist with default password
-            const defaultPassword = "Owner@GoldLink2024"
-            const hashedPassword = await bcrypt.hash(defaultPassword, 10)
-            const newOwner = await prisma.user.create({
-              data: {
-                name: "GoldLink Owner",
-                email: "owner@goldlink.com",
-                role: "OWNER",
-                hashedPassword,
-              },
-            })
-            // Verify password for new owner (must use default password)
-            const isValid = await bcrypt.compare(credentials.password, newOwner.hashedPassword)
-            if (isValid) {
-              return {
-                id: newOwner.id,
-                email: newOwner.email,
-                name: newOwner.name,
-                role: newOwner.role,
+          if (!user) {
+            // Check if it's owner login attempt
+            if (credentials.email === "owner@goldlink.com") {
+              console.log("Owner account not found, creating new owner...")
+              // Create owner if doesn't exist with default password
+              const defaultPassword = "Owner@GoldLink2024"
+              const hashedPassword = await bcrypt.hash(defaultPassword, 10)
+              const newOwner = await prisma.user.create({
+                data: {
+                  name: "GoldLink Owner",
+                  email: "owner@goldlink.com",
+                  role: "OWNER",
+                  hashedPassword,
+                },
+              })
+              console.log("New owner created, verifying password...")
+              // Verify password for new owner (must use default password)
+              const isValid = await bcrypt.compare(credentials.password, newOwner.hashedPassword)
+              if (isValid) {
+                console.log("Owner login successful (new account)")
+                return {
+                  id: newOwner.id,
+                  email: newOwner.email,
+                  name: newOwner.name,
+                  role: newOwner.role,
+                }
               }
+              console.log("Password mismatch for new owner account")
+              // If password doesn't match, return null (don't reveal account was just created)
+              return null
             }
-            // If password doesn't match, return null (don't reveal account was just created)
+            console.log("User not found and not owner email")
             return null
           }
+
+          // If owner exists, verify password
+          if (user.email === "owner@goldlink.com" && user.role === "OWNER") {
+            console.log("Owner account found, verifying password...")
+            const isPasswordValid = await bcrypt.compare(
+              credentials.password,
+              user.hashedPassword
+            )
+
+            if (!isPasswordValid) {
+              console.log("Invalid password for owner account")
+              // If password is wrong, check if they're using default password
+              // and reset it if needed (for recovery)
+              const defaultPassword = "Owner@GoldLink2024"
+              const defaultPasswordHash = await bcrypt.hash(defaultPassword, 10)
+              const isDefaultPassword = await bcrypt.compare(defaultPassword, user.hashedPassword)
+              
+              if (!isDefaultPassword) {
+                // Password was changed, user needs to use their current password
+                return null
+              }
+              return null
+            }
+
+            console.log("Owner login successful (existing account)")
+            return {
+              id: user.id,
+              email: user.email,
+              name: user.name,
+              role: user.role,
+            }
+          }
+
+          // Regular user login
+          const isPasswordValid = await bcrypt.compare(
+            credentials.password,
+            user.hashedPassword
+          )
+
+          if (!isPasswordValid) {
+            console.log("Invalid password for user")
+            return null
+          }
+
+          return {
+            id: user.id,
+            email: user.email,
+            name: user.name,
+            role: user.role,
+          }
+        } catch (error) {
+          console.error("Authorize error:", error)
           return null
-        }
-
-        const isPasswordValid = await bcrypt.compare(
-          credentials.password,
-          user.hashedPassword
-        )
-
-        if (!isPasswordValid) {
-          return null
-        }
-
-        return {
-          id: user.id,
-          email: user.email,
-          name: user.name,
-          role: user.role,
         }
       }
     })

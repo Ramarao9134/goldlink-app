@@ -16,9 +16,21 @@ export async function POST() {
     })
 
     if (existingOwner) {
+      // Reset password to default if owner exists
+      const hashedPassword = await bcrypt.hash(DEFAULT_OWNER_PASSWORD, 10)
+      await prisma.user.update({
+        where: { email: DEFAULT_OWNER_EMAIL },
+        data: {
+          hashedPassword,
+          role: "OWNER", // Ensure role is correct
+        },
+      })
+
       return NextResponse.json({
-        message: "Owner account already exists",
+        message: "Owner account exists, password reset to default",
         email: DEFAULT_OWNER_EMAIL,
+        password: DEFAULT_OWNER_PASSWORD,
+        reset: true,
         exists: true,
       })
     }
@@ -43,7 +55,7 @@ export async function POST() {
   } catch (error) {
     console.error("Error initializing owner:", error)
     return NextResponse.json(
-      { error: "Failed to initialize owner account" },
+      { error: "Failed to initialize owner account", details: error instanceof Error ? error.message : String(error) },
       { status: 500 }
     )
   }
