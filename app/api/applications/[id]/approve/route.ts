@@ -4,6 +4,8 @@ import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { z, ZodError } from "zod"
 
+export const dynamic = 'force-dynamic'
+
 const approveSchema = z.object({
   principalAmount: z.number().positive(),
   interestRateMonthlyPct: z.number().min(0.5).max(5),

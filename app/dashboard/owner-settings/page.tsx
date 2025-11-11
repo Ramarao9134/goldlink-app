@@ -21,7 +21,9 @@ export default function OwnerSettingsPage() {
   const [success, setSuccess] = useState(false)
 
   if (!session || session.user.role !== "OWNER") {
-    router.push("/dashboard")
+    if (typeof window !== "undefined") {
+      router.push("/dashboard")
+    }
     return null
   }
 

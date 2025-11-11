@@ -4,6 +4,8 @@ import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import Razorpay from "razorpay"
 
+export const dynamic = 'force-dynamic'
+
 // Initialize Razorpay only if keys are provided
 let razorpay: Razorpay | null = null
 if (process.env.RAZORPAY_KEY_ID && process.env.RAZORPAY_KEY_SECRET) {

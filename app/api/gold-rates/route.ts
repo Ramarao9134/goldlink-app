@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server"
 import { getLatestGoldRates } from "@/lib/gold-rates-fetcher"
 
+export const dynamic = 'force-dynamic'
+
 export async function GET() {
   try {
     const rates = await getLatestGoldRates()
