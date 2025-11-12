@@ -64,9 +64,6 @@ export const authOptions: NextAuthOptions = {
           }
 
           // If owner exists, verify password
-          const defaultOwnerEmail = "owner@goldlink.com"
-          const defaultPassword = "Owner@GoldLink2024"
-          
           if (user.email.toLowerCase() === defaultOwnerEmail && user.role === "OWNER") {
             console.log("Owner account found, verifying password...")
             const isPasswordValid = await bcrypt.compare(
