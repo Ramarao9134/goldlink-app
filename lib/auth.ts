@@ -32,8 +32,11 @@ export const authOptions: NextAuthOptions = {
             user = await prisma.user.findUnique({
               where: { email: normalizedEmail }
             })
-          } catch (dbError) {
+          } catch (dbError: any) {
             console.error("Database error during user lookup:", dbError)
+            console.error("Error code:", dbError?.code)
+            console.error("Error message:", dbError?.message)
+            console.error("Error stack:", dbError?.stack)
             return null
           }
 

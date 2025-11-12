@@ -61,10 +61,25 @@ export async function POST(req: NextRequest) {
       existingUser = await prisma.user.findUnique({
         where: { email: normalizedEmail },
       })
-    } catch (dbError) {
+    } catch (dbError: any) {
       console.error("Database error checking existing user:", dbError)
+      console.error("Error code:", dbError?.code)
+      console.error("Error message:", dbError?.message)
+      console.error("Error stack:", dbError?.stack)
+      
+      // Check if it's a connection error or database file issue
+      if (dbError?.code === 'P1001' || dbError?.code === 'P1003' || 
+          dbError?.message?.includes('connect') || 
+          dbError?.message?.includes('ENOENT') ||
+          dbError?.message?.includes('no such file')) {
+        return NextResponse.json(
+          { error: "Database is not available. The server may be initializing. Please try again in a moment." },
+          { status: 503 }
+        )
+      }
+      
       return NextResponse.json(
-        { error: "Database connection error. Please try again later." },
+        { error: "Database error. Please try again later." },
         { status: 500 }
       )
     }
@@ -108,12 +123,26 @@ export async function POST(req: NextRequest) {
       console.log("User created successfully:", user.email)
     } catch (createError: any) {
       console.error("User creation error:", createError)
+      console.error("Error code:", createError?.code)
+      console.error("Error message:", createError?.message)
+      console.error("Error stack:", createError?.stack)
       
       // Handle Prisma unique constraint error
       if (createError?.code === 'P2002') {
         return NextResponse.json(
           { error: "A user with this email already exists" },
           { status: 400 }
+        )
+      }
+      
+      // Handle connection/database file errors
+      if (createError?.code === 'P1001' || createError?.code === 'P1003' ||
+          createError?.message?.includes('connect') ||
+          createError?.message?.includes('ENOENT') ||
+          createError?.message?.includes('no such file')) {
+        return NextResponse.json(
+          { error: "Database is not available. Please try again in a moment." },
+          { status: 503 }
         )
       }
       
