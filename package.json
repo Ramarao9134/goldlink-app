@@ -12,6 +12,8 @@
     "db:studio": "prisma studio",
     "db:generate": "prisma generate",
     "db:init": "node scripts/init-db.js",
+    "db:setup": "node scripts/setup-render-db.js",
+    "db:test": "node scripts/test-db-connection.js",
     "postinstall": "prisma generate"
   },
   "dependencies": {
