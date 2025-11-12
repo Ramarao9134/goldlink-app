@@ -25,39 +25,54 @@ export const authOptions: NextAuthOptions = {
           const defaultOwnerEmail = "owner@goldlink.com"
           const defaultPassword = "Owner@GoldLink2024"
           
-          const user = await prisma.user.findUnique({
-            where: { email: normalizedEmail }
-          })
+          console.log("Login attempt for:", normalizedEmail, "isOwner:", normalizedEmail === defaultOwnerEmail)
+          
+          let user
+          try {
+            user = await prisma.user.findUnique({
+              where: { email: normalizedEmail }
+            })
+          } catch (dbError) {
+            console.error("Database error during user lookup:", dbError)
+            return null
+          }
 
           if (!user) {
             // Check if it's owner login attempt
             if (normalizedEmail === defaultOwnerEmail) {
               console.log("Owner account not found, creating new owner...")
-              // Create owner if doesn't exist with default password
-              const hashedPassword = await bcrypt.hash(defaultPassword, 10)
-              const newOwner = await prisma.user.create({
-                data: {
-                  name: "GoldLink Owner",
-                  email: defaultOwnerEmail,
-                  role: "OWNER",
-                  hashedPassword,
-                },
-              })
-              console.log("New owner created, verifying password...")
-              // Verify password for new owner (must use default password)
-              const isValid = await bcrypt.compare(credentials.password, newOwner.hashedPassword)
-              if (isValid) {
-                console.log("Owner login successful (new account)")
-                return {
-                  id: newOwner.id,
-                  email: newOwner.email,
-                  name: newOwner.name,
-                  role: newOwner.role,
+              try {
+                // Create owner if doesn't exist with default password
+                const hashedPassword = await bcrypt.hash(defaultPassword, 10)
+                const newOwner = await prisma.user.create({
+                  data: {
+                    name: "GoldLink Owner",
+                    email: defaultOwnerEmail,
+                    role: "OWNER",
+                    hashedPassword,
+                  },
+                })
+                console.log("New owner created, verifying password...")
+                // Verify password for new owner (must use default password)
+                const isValid = await bcrypt.compare(credentials.password, newOwner.hashedPassword)
+                if (isValid) {
+                  console.log("Owner login successful (new account)")
+                  return {
+                    id: newOwner.id,
+                    email: newOwner.email,
+                    name: newOwner.name,
+                    role: newOwner.role,
+                  }
                 }
+                console.log("Password mismatch for new owner account - provided password doesn't match default")
+                console.log("Expected password:", defaultPassword)
+                // If password doesn't match, return null (don't reveal account was just created)
+                return null
+              } catch (createError) {
+                console.error("Error creating owner account:", createError)
+                // If creation fails, still try to verify with default password in case account exists
+                return null
               }
-              console.log("Password mismatch for new owner account - provided password doesn't match default")
-              // If password doesn't match, return null (don't reveal account was just created)
-              return null
             }
             console.log("User not found and not owner email")
             return null
@@ -66,10 +81,18 @@ export const authOptions: NextAuthOptions = {
           // If owner exists, verify password
           if (user.email.toLowerCase() === defaultOwnerEmail && user.role === "OWNER") {
             console.log("Owner account found, verifying password...")
-            const isPasswordValid = await bcrypt.compare(
-              credentials.password,
-              user.hashedPassword
-            )
+            console.log("User role:", user.role, "Email:", user.email)
+            
+            let isPasswordValid = false
+            try {
+              isPasswordValid = await bcrypt.compare(
+                credentials.password,
+                user.hashedPassword
+              )
+            } catch (compareError) {
+              console.error("Error comparing password:", compareError)
+              return null
+            }
 
             if (!isPasswordValid) {
               console.log("Password doesn't match stored hash, checking if default password was provided...")
@@ -77,20 +100,27 @@ export const authOptions: NextAuthOptions = {
               // If they are, reset the stored password to default (for recovery)
               if (credentials.password === defaultPassword) {
                 console.log("Default password provided, resetting owner password to default...")
-                const hashedDefaultPassword = await bcrypt.hash(defaultPassword, 10)
-                await prisma.user.update({
-                  where: { id: user.id },
-                  data: { hashedPassword: hashedDefaultPassword }
-                })
-                console.log("Owner password reset to default, login successful")
-                return {
-                  id: user.id,
-                  email: user.email,
-                  name: user.name,
-                  role: user.role,
+                try {
+                  const hashedDefaultPassword = await bcrypt.hash(defaultPassword, 10)
+                  await prisma.user.update({
+                    where: { id: user.id },
+                    data: { hashedPassword: hashedDefaultPassword }
+                  })
+                  console.log("Owner password reset to default, login successful")
+                  return {
+                    id: user.id,
+                    email: user.email,
+                    name: user.name,
+                    role: user.role,
+                  }
+                } catch (updateError) {
+                  console.error("Error updating owner password:", updateError)
+                  return null
                 }
               }
-              console.log("Invalid password for owner account - password provided doesn't match stored hash or default password")
+              console.log("Invalid password for owner account")
+              console.log("Provided password length:", credentials.password.length)
+              console.log("Expected default password:", defaultPassword)
               return null
             }
 
